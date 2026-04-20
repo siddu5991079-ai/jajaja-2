@@ -1,4 +1,3 @@
-
 const puppeteer = require('puppeteer-extra');
 const StealthPlugin = require('puppeteer-extra-plugin-stealth');
 const fs = require('fs');
@@ -32,6 +31,13 @@ puppeteer.use(StealthPlugin());
 
   const page = await browser.newPage();
   
+  // Yeh listener browser ke andar wale logs ko aapke terminal par show karega
+  page.on('console', msg => {
+      if (msg.text().includes('Data Captured:')) {
+          console.log(msg.text());
+      }
+  });
+  
   await page.authenticate({
       username: proxyUser,
       password: proxyPass
@@ -46,16 +52,6 @@ puppeteer.use(StealthPlugin());
   try {
     console.log(`Navigating directly to: ${targetUrl}`);
     await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 60000 });
-
-    /* =========================================
-    COMMENTED OUT: Old Navigation & Clicks
-    =========================================
-    const cricketSelector = 'a[href="/index.php?cat=Cricket"]';
-    await page.waitForSelector(cricketSelector, { visible: true, timeout: 10000 });
-    // ... (baki saari click logic yahan thi)
-    // const willowSelector = 'a[data-ch="willow 2 cricket"]'; 
-    =========================================
-    */
 
     console.log("Waiting 15 seconds for stream and players to load completely...");
     await new Promise(r => setTimeout(r, 15000)); 
@@ -84,7 +80,7 @@ puppeteer.use(StealthPlugin());
     
     let videoRecorded = false;
     
-    // Video dhoondne ke liye 3 attempts lagayenge (taake stream late load ho toh miss na ho)
+    // Video dhoondne ke liye 3 attempts lagayenge
     for (let attempt = 1; attempt <= 3; attempt++) {
         if (videoRecorded) break;
         console.log(`Recording attempt ${attempt}...`);
@@ -101,8 +97,16 @@ puppeteer.use(StealthPlugin());
                             const stream = video.captureStream();
                             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
                             const chunks = [];
+                            let totalBytes = 0; // Data calculate karne ke liye variable
 
-                            recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+                            recorder.ondataavailable = e => { 
+                                if (e.data.size > 0) {
+                                    chunks.push(e.data); 
+                                    totalBytes += e.data.size;
+                                    // Bytes ko MBs mein convert karke browser console mein print kar rahe hain
+                                    console.log(`Data Captured: ${(totalBytes / (1024 * 1024)).toFixed(2)} MB`);
+                                }
+                            };
                             recorder.onstop = () => {
                                 const blob = new Blob(chunks, { type: 'video/webm' });
                                 const reader = new FileReader();
@@ -110,7 +114,8 @@ puppeteer.use(StealthPlugin());
                                 reader.onloadend = () => resolve(reader.result);
                             };
 
-                            recorder.start();
+                            // start(1000) lagaya hai taake har second chunk mile
+                            recorder.start(1000);
                             setTimeout(() => recorder.stop(), 50000); 
                         } catch (err) {
                             resolve(null);
@@ -121,7 +126,7 @@ puppeteer.use(StealthPlugin());
                 if (base64Video) {
                     const base64Data = base64Video.split(',')[1];
                     fs.writeFileSync('raw_video.webm', Buffer.from(base64Data, 'base64'));
-                    console.log("Perfect Native Match Recording Saved!");
+                    console.log(`Perfect Native Match Recording Saved!`);
                     videoRecorded = true;
                 }
             } catch (e) {}
@@ -144,6 +149,164 @@ puppeteer.use(StealthPlugin());
   console.log("Closing browser to free up CPU...");
   await browser.close();
 })();
+
+
+
+
+
+
+
+
+
+// ====================== doen ==============
+
+
+
+// const puppeteer = require('puppeteer-extra');
+// const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+// const fs = require('fs');
+
+// puppeteer.use(StealthPlugin());
+
+// (async () => {
+//   console.log("Launching Browser on GitHub Actions with Native Recorder...");
+
+//   const proxyIpPort = '31.59.20.176:6754';
+//   const proxyUser = 'jznxuitn';
+//   const proxyPass = '4sp9smus5w8q';
+  
+//   // GitHub Actions se aane wala URL ya phir default URL
+//   const targetUrl = process.env.STREAM_URL || 'https://dlstreams.com/';
+  
+//   const browser = await puppeteer.launch({
+//     headless: false, 
+//     defaultViewport: { width: 1280, height: 720 },
+//     args: [
+//       '--no-sandbox', 
+//       '--disable-setuid-sandbox',
+//       '--disable-web-security',
+//       '--disable-features=IsolateOrigins,site-per-process',
+//       '--enable-experimental-web-platform-features',
+//       '--window-size=1280,720',
+//       '--autoplay-policy=no-user-gesture-required', 
+//       `--proxy-server=http://${proxyIpPort}`
+//     ]
+//   });
+
+//   const page = await browser.newPage();
+  
+//   await page.authenticate({
+//       username: proxyUser,
+//       password: proxyPass
+//   });
+//   console.log("Proxy credentials applied successfully.");
+
+//   await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+  
+//   // Anti-popup injection start se hi laga di
+//   await page.evaluateOnNewDocument(() => { window.open = () => null; });
+
+//   try {
+//     console.log(`Navigating directly to: ${targetUrl}`);
+//     await page.goto(targetUrl, { waitUntil: 'networkidle2', timeout: 60000 });
+
+//     /* =========================================
+//     COMMENTED OUT: Old Navigation & Clicks
+//     =========================================
+//     const cricketSelector = 'a[href="/index.php?cat=Cricket"]';
+//     await page.waitForSelector(cricketSelector, { visible: true, timeout: 10000 });
+//     // ... (baki saari click logic yahan thi)
+//     // const willowSelector = 'a[data-ch="willow 2 cricket"]'; 
+//     =========================================
+//     */
+
+//     console.log("Waiting 15 seconds for stream and players to load completely...");
+//     await new Promise(r => setTimeout(r, 15000)); 
+    
+//     console.log("Destroying Ad-Trap and scrolling...");
+//     await page.evaluate(() => {
+//         const trap = document.querySelector('div#dontfoid');
+//         if (trap) trap.remove();
+//         window.scrollBy({ top: 400, behavior: 'smooth' });
+//     });
+    
+//     console.log("Waiting 3 seconds before unmuting...");
+//     await new Promise(r => setTimeout(r, 3000));
+    
+//     console.log("Bypassing ads and unmuting safely...");
+//     for (const frame of page.frames()) {
+//         try {
+//             await frame.evaluate(() => {
+//                 const unmuteBtn = document.querySelector('#UnMutePlayer button');
+//                 if (unmuteBtn) unmuteBtn.click();
+//             });
+//         } catch (error) {}
+//     }
+    
+//     console.log("SUCCESS! Searching for video stream to start Native Recording...");
+    
+//     let videoRecorded = false;
+    
+//     // Video dhoondne ke liye 3 attempts lagayenge (taake stream late load ho toh miss na ho)
+//     for (let attempt = 1; attempt <= 3; attempt++) {
+//         if (videoRecorded) break;
+//         console.log(`Recording attempt ${attempt}...`);
+
+//         for (const frame of page.frames()) {
+//             if (videoRecorded) break;
+//             try {
+//                 const base64Video = await frame.evaluate(async () => {
+//                     return new Promise((resolve) => {
+//                         const video = document.querySelector('video');
+//                         if (!video) return resolve(null);
+
+//                         try {
+//                             const stream = video.captureStream();
+//                             const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+//                             const chunks = [];
+
+//                             recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
+//                             recorder.onstop = () => {
+//                                 const blob = new Blob(chunks, { type: 'video/webm' });
+//                                 const reader = new FileReader();
+//                                 reader.readAsDataURL(blob);
+//                                 reader.onloadend = () => resolve(reader.result);
+//                             };
+
+//                             recorder.start();
+//                             setTimeout(() => recorder.stop(), 50000); 
+//                         } catch (err) {
+//                             resolve(null);
+//                         }
+//                     });
+//                 });
+
+//                 if (base64Video) {
+//                     const base64Data = base64Video.split(',')[1];
+//                     fs.writeFileSync('raw_video.webm', Buffer.from(base64Data, 'base64'));
+//                     console.log("Perfect Native Match Recording Saved!");
+//                     videoRecorded = true;
+//                 }
+//             } catch (e) {}
+//         }
+        
+//         if (!videoRecorded) {
+//             console.log("Video player not found yet. Waiting 10 seconds before retrying...");
+//             await new Promise(r => setTimeout(r, 10000));
+//         }
+//     }
+
+//     if (!videoRecorded) {
+//         console.log("Failed to find or record video stream. Please check if the URL contains a valid video player.");
+//     }
+
+//   } catch (error) {
+//     console.log("Execution stopped or error occurred:", error.message);
+//   }
+
+//   console.log("Closing browser to free up CPU...");
+//   await browser.close();
+// })();
 
 
 
